@@ -19,14 +19,14 @@ company_df = load_company_list()
 st.markdown("### 🔍 Buscar empresa por nombre")
 query = st.text_input("Escribí parte del nombre de la empresa (ej: Netflix, Apple)").lower()
 
-filtered_df = company_df[company_df["Company Name"].str.lower().str.contains(query)]
+filtered_df = company_df[company_df["Company Name"].fillna("").str.lower().str.contains(query, na=False)]
 selected_ticker = None
 
 if not filtered_df.empty:
     option = st.selectbox("Seleccioná la empresa:", filtered_df["Company Name"] + " (" + filtered_df["Symbol"] + ")")
     selected_ticker = option.split("(")[-1].replace(")", "").strip()
 elif query:
-    st.warning("No se encontraron resultados para esa búsqueda.")
+    st.warning("⚠️ No se encontraron resultados para esa búsqueda.")
 
 # ========= TICKERS DESTACADOS =========
 tickers = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "GOOGL", "META", "JPM", "DIS", "MCD"]
@@ -46,7 +46,7 @@ for ticker in tickers:
         prev_closes[ticker] = None
 
 # ========= SECCIONES VISUALES =========
-st.markdown("<div class='section-title'>📊 Tendencias USA</div>", unsafe_allow_html=True)
+st.markdown("## 📊 Tendencias USA")
 cols = st.columns(5)
 
 for i, ticker in enumerate(tickers[:5]):
@@ -54,36 +54,23 @@ for i, ticker in enumerate(tickers[:5]):
     prev = prev_closes[ticker]
     change = ((price - prev) / prev) * 100 if price and prev else 0
     label = f"${price:.2f}" if price else "N/A"
-    color_class = "change-pos" if change > 0 else "change-neg"
     with cols[i]:
         if st.button(ticker, key=f"top_{ticker}"):
             selected_ticker = ticker
-        st.markdown(f"""
-        <div class="card">
-            <div class="card-title">{ticker}</div>
-            <div class="price">{label}</div>
-            <div class="{color_class}">{change:.2f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"{label} ({change:.2f}%)")
 
-st.markdown("<div class='section-title'>🔥 Más negociadas</div>", unsafe_allow_html=True)
+st.markdown("## 🔥 Más negociadas")
 cols2 = st.columns(5)
+
 for i, ticker in enumerate(tickers[5:]):
     price = last_prices[ticker]
     prev = prev_closes[ticker]
     change = ((price - prev) / prev) * 100 if price and prev else 0
     label = f"${price:.2f}" if price else "N/A"
-    color_class = "change-pos" if change > 0 else "change-neg"
     with cols2[i]:
         if st.button(ticker, key=f"bottom_{ticker}"):
             selected_ticker = ticker
-        st.markdown(f"""
-        <div class="card">
-            <div class="card-title">{ticker}</div>
-            <div class="price">{label}</div>
-            <div class="{color_class}">{change:.2f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"{label} ({change:.2f}%)")
 
 # ========= ANÁLISIS =========
 if selected_ticker:
@@ -110,40 +97,41 @@ if selected_ticker:
             eps = info.get("trailingEps", None)
             mkt_cap = info.get("marketCap", None)
 
-            st.markdown(f"<h2 style='color:#ffffff;'>📌 Análisis de {selected_ticker}</h2>", unsafe_allow_html=True)
+            st.markdown(f"## 📌 Análisis de {selected_ticker}")
 
             # RSI
-            st.markdown(f"<div class='metric-box'><h3>📉 RSI: {rsi:.2f}</h3>", unsafe_allow_html=True)
+            st.markdown(f"**📉 RSI: {rsi:.2f}**")
             if rsi < 30:
-                st.markdown("📉 Sobrevendido. Probabilidad de rebote: <span style='color:lime;'>ALTA ✅</span>", unsafe_allow_html=True)
+                st.success("📉 Sobrevendido. Probabilidad de rebote: ALTA ✅")
             elif rsi > 70:
-                st.markdown("📈 Sobrecomprado. Riesgo de caída: <span style='color:red;'>ELEVADO ⚠️</span>", unsafe_allow_html=True)
+                st.warning("📈 Sobrecomprado. Riesgo de caída: ELEVADO ⚠️")
             else:
-                st.markdown("📊 RSI neutral. Esperar confirmación.</div>", unsafe_allow_html=True)
+                st.info("📊 RSI neutral. Esperar confirmación.")
 
             # MA
-            st.markdown(f"<div class='metric-box'><h3>📈 MA50: {ma50:.2f} | MA200: {ma200:.2f} | Precio: {price_now:.2f}</h3>", unsafe_allow_html=True)
+            st.markdown(f"**📈 MA50: {ma50:.2f} | MA200: {ma200:.2f} | Precio: {price_now:.2f}**")
             if price_now > ma50 > ma200:
-                st.markdown("🟢 Tendencia alcista.", unsafe_allow_html=True)
+                st.success("🟢 Tendencia alcista.")
             elif price_now < ma50 < ma200:
-                st.markdown("🔴 Tendencia bajista.", unsafe_allow_html=True)
+                st.error("🔴 Tendencia bajista.")
             else:
-                st.markdown("🟡 Señal mixta.</div>", unsafe_allow_html=True)
+                st.info("🟡 Señal mixta.")
 
             # Bollinger Bands
-            st.markdown(f"<div class='metric-box'><h3>📊 Bollinger Bands</h3><p>Superior: {bb_upper:.2f} | Inferior: {bb_lower:.2f}</p>", unsafe_allow_html=True)
+            st.markdown(f"**📊 Bollinger Bands**\n- Superior: {bb_upper:.2f}\n- Inferior: {bb_lower:.2f}")
             if price_now >= bb_upper:
-                st.markdown("🚨 Precio en banda superior. Riesgo de corrección.</div>", unsafe_allow_html=True)
+                st.warning("🚨 Precio en banda superior. Riesgo de corrección.")
             elif price_now <= bb_lower:
-                st.markdown("🟢 Precio en banda inferior. Potencial rebote.</div>", unsafe_allow_html=True)
+                st.success("🟢 Precio en banda inferior. Potencial rebote.")
             else:
-                st.markdown("📎 Dentro del canal.</div>", unsafe_allow_html=True)
+                st.info("📎 Dentro del canal.")
 
             # ATH
-            st.markdown(f"<div class='metric-box'><h3>🏔 Máximo Histórico: {ath:.2f} | Upside: {upside:.2f}%</h3></div>", unsafe_allow_html=True)
+            st.markdown(f"**🏔 Máximo Histórico: {ath:.2f} | Upside: {upside:.2f}%**")
 
             # Fundamentos
-            st.markdown(f"<div class='metric-box'><h3>📘 Fundamentos</h3><p>PE: {pe} | EPS: {eps} | Market Cap: ${mkt_cap:,}</p></div>", unsafe_allow_html=True)
+            st.markdown("**📘 Fundamentos**")
+            st.markdown(f"- PE: {pe}\n- EPS: {eps}\n- Market Cap: ${mkt_cap:,}" if mkt_cap else "- Datos no disponibles")
 
             # Gráfico interactivo
             st.markdown("### 📈 Gráfico interactivo")
