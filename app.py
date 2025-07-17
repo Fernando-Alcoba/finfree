@@ -77,10 +77,17 @@ st.markdown("<p style='color:#cccccc;'>Descubrí oportunidades de inversión con
 @st.cache_data
 def load_companies():
     url = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
-    return pd.read_csv(url)
+    df = pd.read_csv(url)
+    # Confirmamos columnas que esperamos:
+    expected_columns = {"Symbol", "Name"}
+    if not expected_columns.issubset(df.columns):
+        st.error("El archivo de empresas no contiene las columnas esperadas.")
+    return df
 
 company_df = load_companies()
-company_df["SearchKey"] = company_df["Name"].fillna("").str.lower()  # <-- Cambié "Company Name" por "Name"
+
+# Crear columna SearchKey con nombre en minúsculas para búsqueda
+company_df["SearchKey"] = company_df["Name"].fillna("").str.lower()
 
 # =======================
 # Buscador por nombre
@@ -93,7 +100,7 @@ filtered_df = company_df[company_df["SearchKey"].str.contains(query, na=False)] 
 selected_ticker = None
 
 if not filtered_df.empty:
-    opciones = filtered_df["Name"] + " (" + filtered_df["Symbol"] + ")"  # Cambié también aquí "Company Name" por "Name"
+    opciones = filtered_df["Name"] + " (" + filtered_df["Symbol"] + ")"
     seleccion = st.selectbox("Elegí la empresa:", opciones)
     selected_ticker = seleccion.split("(")[-1].replace(")", "").strip()
 
@@ -263,4 +270,3 @@ if selected_ticker:
                     st.markdown(f"🔹 [{entry.title}]({entry.link})")
         except:
             st.error("Error al obtener noticias.")
-
