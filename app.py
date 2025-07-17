@@ -70,7 +70,13 @@ st.markdown("<p style='color:#cccccc;'>Descubrí oportunidades de inversión con
 # ======================
 
 tickers = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "GOOGL", "META", "JPM", "DIS", "MCD"]
-data = yf.download(tickers, period="1d", interval="1m")['Adj Close'].iloc[-1]
+
+# Descargar datos de 1 minuto para hoy y obtener último precio ajustado
+data = yf.download(tickers, period="1d", interval="1m")
+adj_close = data['Adj Close']  # Extraemos sólo los precios ajustados
+last_prices = adj_close.iloc[-1]
+
+# Descargar precios de cierre del día anterior para calcular cambio %
 prev_close = yf.download(tickers, period="2d", interval="1d")['Adj Close'].iloc[0]
 
 st.markdown("<div class='section-title'>📊 Tendencias USA</div>", unsafe_allow_html=True)
@@ -79,15 +85,15 @@ cols = st.columns(5)
 selected_ticker = None
 
 for i, ticker in enumerate(tickers[:5]):
-    change = ((data[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
+    change = ((last_prices[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
     color_class = "change-pos" if change > 0 else "change-neg"
     with cols[i]:
-        if st.button(f"{ticker}\n\n${data[ticker]:.2f} ({change:.2f}%)"):
+        if st.button(f"{ticker}\n\n${last_prices[ticker]:.2f} ({change:.2f}%)"):
             selected_ticker = ticker
         st.markdown(f"""
         <div class="card">
             <div class="card-title">{ticker}</div>
-            <div class="price">${data[ticker]:.2f}</div>
+            <div class="price">${last_prices[ticker]:.2f}</div>
             <div class="{color_class}">{change:.2f}%</div>
         </div>
         """, unsafe_allow_html=True)
@@ -95,15 +101,15 @@ for i, ticker in enumerate(tickers[:5]):
 st.markdown("<div class='section-title'>🔥 Más negociadas</div>", unsafe_allow_html=True)
 cols2 = st.columns(5)
 for i, ticker in enumerate(tickers[5:]):
-    change = ((data[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
+    change = ((last_prices[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
     color_class = "change-pos" if change > 0 else "change-neg"
     with cols2[i]:
-        if st.button(f"{ticker}\n\n${data[ticker]:.2f} ({change:.2f}%)", key=f"vol_{ticker}"):
+        if st.button(f"{ticker}\n\n${last_prices[ticker]:.2f} ({change:.2f}%)", key=f"vol_{ticker}"):
             selected_ticker = ticker
         st.markdown(f"""
         <div class="card">
             <div class="card-title">{ticker}</div>
-            <div class="price">${data[ticker]:.2f}</div>
+            <div class="price">${last_prices[ticker]:.2f}</div>
             <div class="{color_class}">{change:.2f}%</div>
         </div>
         """, unsafe_allow_html=True)
@@ -183,21 +189,21 @@ if selected_ticker:
 
     # Resumen
     st.markdown(f"<div class='metric-box'><h3>🧠 Asistente AI</h3>", unsafe_allow_html=True)
-    if rsi < 30 and upside > 25 and eps > 0:
+    if rsi < 30 and upside > 25 and eps and eps > 0:
         st.markdown("🟢 Escenario optimista. Entrada técnica válida.", unsafe_allow_html=True)
     elif rsi > 70 or price_now > bb_upper:
         st.markdown("🔴 Posible corrección. Cautela recomendada.", unsafe_allow_html=True)
     else:
         st.markdown("🟡 Esperar mejor oportunidad.", unsafe_allow_html=True)
 
-    st.markdown("""
+    st.markdown(f"""
     <ul>
     <li>Si buscás entrada, RSI < 40 o rebote en MA50</li>
     <li>Si ya tenés, mantené mientras EPS siga positivo</li>
-    <li>Zona objetivo: ${:.2f}</li>
+    <li>Zona objetivo: ${ath:.2f}</li>
     </ul>
     </div>
-    """.format(ath), unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
     # TradingView
     st.markdown("### 📈 Gráfico interactivo")
@@ -206,4 +212,3 @@ if selected_ticker:
     width="100%" height="500" frameborder="0" scrolling="no"></iframe>
     """
     components.html(tv_widget, height=500)
-
