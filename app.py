@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit as st 
 import pandas as pd
 import yfinance as yf
 import ta
@@ -72,12 +72,25 @@ st.markdown("<p style='color:#cccccc;'>Descubrí oportunidades de inversión con
 tickers = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "GOOGL", "META", "JPM", "DIS", "MCD"]
 
 # Descargar datos de 1 minuto para hoy y obtener último precio ajustado
-data = yf.download(tickers, period="1d", interval="1m")
-adj_close = data['Adj Close']  # Extraemos sólo los precios ajustados
-last_prices = adj_close.iloc[-1]
+data = yf.download(tickers, period="1d", interval="1m", group_by='ticker', threads=True)
+
+# Extraemos precios ajustados para cada ticker y armamos un DataFrame
+last_prices = {}
+for ticker in tickers:
+    try:
+        adj_close = data[ticker]['Adj Close']
+        last_prices[ticker] = adj_close.iloc[-1]
+    except Exception:
+        last_prices[ticker] = None
 
 # Descargar precios de cierre del día anterior para calcular cambio %
-prev_close = yf.download(tickers, period="2d", interval="1d")['Adj Close'].iloc[0]
+prev_close_data = yf.download(tickers, period="2d", interval="1d")
+prev_close = {}
+for ticker in tickers:
+    try:
+        prev_close[ticker] = prev_close_data[ticker]['Adj Close'].iloc[-2]
+    except Exception:
+        prev_close[ticker] = None
 
 st.markdown("<div class='section-title'>📊 Tendencias USA</div>", unsafe_allow_html=True)
 cols = st.columns(5)
@@ -85,7 +98,10 @@ cols = st.columns(5)
 selected_ticker = None
 
 for i, ticker in enumerate(tickers[:5]):
-    change = ((last_prices[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
+    if last_prices[ticker] is not None and prev_close[ticker] is not None:
+        change = ((last_prices[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
+    else:
+        change = 0
     color_class = "change-pos" if change > 0 else "change-neg"
     with cols[i]:
         if st.button(f"{ticker}\n\n${last_prices[ticker]:.2f} ({change:.2f}%)"):
@@ -101,7 +117,10 @@ for i, ticker in enumerate(tickers[:5]):
 st.markdown("<div class='section-title'>🔥 Más negociadas</div>", unsafe_allow_html=True)
 cols2 = st.columns(5)
 for i, ticker in enumerate(tickers[5:]):
-    change = ((last_prices[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
+    if last_prices[ticker] is not None and prev_close[ticker] is not None:
+        change = ((last_prices[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
+    else:
+        change = 0
     color_class = "change-pos" if change > 0 else "change-neg"
     with cols2[i]:
         if st.button(f"{ticker}\n\n${last_prices[ticker]:.2f} ({change:.2f}%)", key=f"vol_{ticker}"):
@@ -212,3 +231,4 @@ if selected_ticker:
     width="100%" height="500" frameborder="0" scrolling="no"></iframe>
     """
     components.html(tv_widget, height=500)
+
