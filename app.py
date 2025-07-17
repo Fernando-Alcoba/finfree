@@ -7,9 +7,7 @@ import feedparser
 
 st.set_page_config(layout="wide", page_title="FinAdvisor AI")
 
-# =======================
-# CSS personalizado
-# =======================
+# ===== CSS personalizado =====
 st.markdown("""
 <style>
 body {
@@ -65,20 +63,16 @@ body {
 </style>
 """, unsafe_allow_html=True)
 
-# =======================
-# Título y descripción
-# =======================
+# ===== Título y descripción =====
 st.markdown("<h1 style='color:#ffffff;'>👋 Bienvenido a FinAdvisor AI</h1>", unsafe_allow_html=True)
 st.markdown("<p style='color:#cccccc;'>Descubrí oportunidades de inversión con datos en tiempo real, análisis técnico, fundamental y noticias.</p>", unsafe_allow_html=True)
 
-# =======================
-# Cargar datos de empresas
-# =======================
+# ===== Cargar datos de empresas =====
 @st.cache_data
 def load_companies():
     url = "https://datahub.io/core/s-and-p-500-companies/r/constituents.csv"
     df = pd.read_csv(url)
-    expected_columns = {"Symbol", "Name"}
+    expected_columns = {"Symbol", "Security"}
     if not expected_columns.issubset(df.columns):
         st.error(f"El archivo de empresas no contiene las columnas esperadas. Columnas encontradas: {list(df.columns)}")
         return pd.DataFrame()
@@ -90,11 +84,9 @@ if company_df.empty:
     st.stop()
 
 # Crear columna SearchKey con nombre en minúsculas para búsqueda
-company_df["SearchKey"] = company_df["Name"].fillna("").str.lower()
+company_df["SearchKey"] = company_df["Security"].fillna("").str.lower()
 
-# =======================
-# Buscador por nombre
-# =======================
+# ===== Buscador por nombre =====
 st.markdown("### 🔍 Buscar empresa")
 query = st.text_input("Ingresá el nombre o parte del nombre de la empresa").lower()
 
@@ -103,13 +95,11 @@ filtered_df = company_df[company_df["SearchKey"].str.contains(query, na=False)] 
 selected_ticker = None
 
 if not filtered_df.empty:
-    opciones = filtered_df["Name"] + " (" + filtered_df["Symbol"] + ")"
+    opciones = filtered_df["Security"] + " (" + filtered_df["Symbol"] + ")"
     seleccion = st.selectbox("Elegí la empresa:", opciones)
     selected_ticker = seleccion.split("(")[-1].replace(")", "").strip()
 
-# =======================
-# Tickers populares
-# =======================
+# ===== Tickers populares =====
 tickers = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "GOOGL", "META", "JPM", "DIS", "MCD"]
 
 data = yf.download(tickers, period="1d", interval="1m", group_by='ticker', threads=True)
@@ -166,9 +156,7 @@ for i, ticker in enumerate(tickers[5:]):
         </div>
         """, unsafe_allow_html=True)
 
-# =======================
-# Análisis técnico y noticias
-# =======================
+# ===== Análisis técnico y noticias =====
 if selected_ticker:
     stock = yf.Ticker(selected_ticker)
     hist = stock.history(period="max")
