@@ -76,15 +76,18 @@ st.markdown("<p style='color:#cccccc;'>Descubrí oportunidades de inversión con
 # =======================
 @st.cache_data
 def load_companies():
-    url = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
+    url = "https://datahub.io/core/s-and-p-500-companies/r/constituents.csv"
     df = pd.read_csv(url)
-    # Confirmamos columnas que esperamos:
     expected_columns = {"Symbol", "Name"}
     if not expected_columns.issubset(df.columns):
-        st.error("El archivo de empresas no contiene las columnas esperadas.")
+        st.error(f"El archivo de empresas no contiene las columnas esperadas. Columnas encontradas: {list(df.columns)}")
+        return pd.DataFrame()
     return df
 
 company_df = load_companies()
+
+if company_df.empty:
+    st.stop()
 
 # Crear columna SearchKey con nombre en minúsculas para búsqueda
 company_df["SearchKey"] = company_df["Name"].fillna("").str.lower()
