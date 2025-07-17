@@ -80,7 +80,7 @@ def load_companies():
     return pd.read_csv(url)
 
 company_df = load_companies()
-company_df["SearchKey"] = company_df["Company Name"].fillna("").str.lower()
+company_df["SearchKey"] = company_df["Name"].fillna("").str.lower()  # <-- Cambié "Company Name" por "Name"
 
 # =======================
 # Buscador por nombre
@@ -93,7 +93,7 @@ filtered_df = company_df[company_df["SearchKey"].str.contains(query, na=False)] 
 selected_ticker = None
 
 if not filtered_df.empty:
-    opciones = filtered_df["Company Name"] + " (" + filtered_df["Symbol"] + ")"
+    opciones = filtered_df["Name"] + " (" + filtered_df["Symbol"] + ")"  # Cambié también aquí "Company Name" por "Name"
     seleccion = st.selectbox("Elegí la empresa:", opciones)
     selected_ticker = seleccion.split("(")[-1].replace(")", "").strip()
 
@@ -263,3 +263,4 @@ if selected_ticker:
                     st.markdown(f"🔹 [{entry.title}]({entry.link})")
         except:
             st.error("Error al obtener noticias.")
+
