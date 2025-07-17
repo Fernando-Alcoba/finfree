@@ -4,99 +4,146 @@ import yfinance as yf
 import ta
 import streamlit.components.v1 as components
 
-# Configuración inicial
-st.set_page_config(layout="wide", page_title="Análisis de Acciones")
+st.set_page_config(layout="wide", page_title="Asesor de Acciones AI")
 
-# Estilos CSS personalizados
+# 💄 Estilos
 st.markdown("""
-    <style>
-    body {
-        background-color: #0e1117;
-        color: white;
-    }
-    .title {
-        font-size: 3em;
-        font-weight: 700;
-        color: #c084fc;
-    }
-    .metric-box {
-        border-radius: 12px;
-        background-color: #1c1f26;
-        padding: 20px;
-        text-align: center;
-        margin: 10px 5px;
-    }
-    .metric-box h2 {
-        font-size: 1.5em;
-        color: #f0f0f0;
-    }
-    .metric-box p {
-        font-size: 1.1em;
-        color: #a0aec0;
-    }
-    </style>
+<style>
+body {
+    background-color: #0e1117;
+    color: white;
+}
+.metric-box {
+    border-radius: 12px;
+    background-color: #1c1f26;
+    padding: 20px;
+    margin: 10px 0;
+}
+.metric-box h3 {
+    font-size: 1.3em;
+    color: #f0f0f0;
+}
+.metric-box p {
+    font-size: 1.05em;
+    color: #a0aec0;
+}
+</style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='title'>📊 Análisis Integral de Acciones</div>", unsafe_allow_html=True)
+# Título principal
+st.markdown("<h1 style='color:#c084fc;'>📊 Análisis de Acción Inteligente</h1>", unsafe_allow_html=True)
 
-# Sidebar: selección de ticker
-ticker = st.sidebar.selectbox("Seleccioná una acción", ["AAPL", "MSFT", "TSLA", "NVDA", "GOOGL", "AMZN"])
+# ▶️ Selección de acción
+ticker = st.sidebar.selectbox("Elegí una acción", ["AAPL", "MSFT", "TSLA", "GOOGL", "NVDA", "AMZN"])
 
-# Obtener datos
+# ▶️ Cargar datos
 stock = yf.Ticker(ticker)
 hist = stock.history(period="max")
-current_price = hist["Close"][-1]
+price_now = hist["Close"].iloc[-1]
 ath = hist["Close"].max()
-upside = ((ath - current_price) / current_price) * 100
+upside = ((ath - price_now) / price_now) * 100
 
-# RSI & Medias
-hist_technical = stock.history(period="6mo", interval="1d")
-rsi = ta.momentum.RSIIndicator(close=hist_technical["Close"]).rsi().iloc[-1]
-ma50 = hist_technical["Close"].rolling(window=50).mean().iloc[-1]
-ma200 = hist_technical["Close"].rolling(window=200).mean().iloc[-1]
-
-# Bollinger Bands
-bb = ta.volatility.BollingerBands(close=hist_technical["Close"])
+# ▶️ Técnicos
+df = stock.history(period="6mo")
+rsi = ta.momentum.RSIIndicator(df["Close"]).rsi().iloc[-1]
+ma50 = df["Close"].rolling(50).mean().iloc[-1]
+ma200 = df["Close"].rolling(200).mean().iloc[-1]
+bb = ta.volatility.BollingerBands(df["Close"])
 bb_upper = bb.bollinger_hband().iloc[-1]
 bb_lower = bb.bollinger_lband().iloc[-1]
 
-# Datos fundamentales
+# ▶️ Fundamentales
 info = stock.info
-pe_ratio = info.get("trailingPE", "N/A")
-market_cap = info.get("marketCap", "N/A")
-eps = info.get("trailingEps", "N/A")
+pe = info.get("trailingPE", None)
+eps = info.get("trailingEps", None)
+mkt_cap = info.get("marketCap", None)
 
-# Mostrar tarjetas
-cols = st.columns(3)
-with cols[0]:
-    st.markdown("<div class='metric-box'><h2>💰 Precio Actual</h2><p>${:,.2f}</p></div>".format(current_price), unsafe_allow_html=True)
-with cols[1]:
-    st.markdown("<div class='metric-box'><h2>🏔 Máximo Histórico</h2><p>${:,.2f}</p></div>".format(ath), unsafe_allow_html=True)
-with cols[2]:
-    st.markdown("<div class='metric-box'><h2>🚀 Upside Potencial</h2><p>{:+.2f}%</p></div>".format(upside), unsafe_allow_html=True)
+# ▶️ SECCIONES EXPLICATIVAS
 
-cols2 = st.columns(3)
-with cols2[0]:
-    st.markdown("<div class='metric-box'><h2>📉 RSI</h2><p>{:.2f} - {}</p></div>".format(
-        rsi, "🟢 Comprar" if rsi < 30 else "🔴 Vender" if rsi > 70 else "🟡 Neutral"
-    ), unsafe_allow_html=True)
-with cols2[1]:
-    st.markdown("<div class='metric-box'><h2>📈 MA50 / MA200</h2><p>{:.2f} / {:.2f}</p></div>".format(ma50, ma200), unsafe_allow_html=True)
-with cols2[2]:
-    st.markdown("<div class='metric-box'><h2>📊 Bandas Bollinger</h2><p>U: {:.2f} / L: {:.2f}</p></div>".format(bb_upper, bb_lower), unsafe_allow_html=True)
+# 1. RSI
+st.markdown("### 📉 RSI (Índice de Fuerza Relativa)")
+st.markdown(f"<div class='metric-box'><h3>RSI actual: {rsi:.2f}</h3>", unsafe_allow_html=True)
+if rsi < 30:
+    st.markdown("<p>📉 Está en sobreventa. Probabilidad de rebote: <span style='color:lime;'>ALTA ✅</span></p>", unsafe_allow_html=True)
+elif rsi > 70:
+    st.markdown("<p>📈 Está en sobrecompra. Riesgo de corrección: <span style='color:red;'>ELEVADO ⚠️</span></p>", unsafe_allow_html=True)
+else:
+    st.markdown("<p>📊 RSI neutral. Esperar confirmación del mercado.</p></div>", unsafe_allow_html=True)
 
-cols3 = st.columns(3)
-with cols3[0]:
-    st.markdown("<div class='metric-box'><h2>🏦 P/E Ratio</h2><p>{}</p></div>".format(pe_ratio), unsafe_allow_html=True)
-with cols3[1]:
-    st.markdown("<div class='metric-box'><h2>💸 Market Cap</h2><p>${:,}</p></div>".format(market_cap), unsafe_allow_html=True)
-with cols3[2]:
-    st.markdown("<div class='metric-box'><h2>📘 EPS</h2><p>{}</p></div>".format(eps), unsafe_allow_html=True)
+# 2. Medias móviles
+st.markdown("### 📈 Medias Móviles")
+st.markdown(f"<div class='metric-box'><h3>MA50: {ma50:.2f} | MA200: {ma200:.2f} | Precio actual: {price_now:.2f}</h3>", unsafe_allow_html=True)
+if price_now > ma50 > ma200:
+    st.markdown("<p>🟢 Tendencia alcista consolidada. Momentum positivo.</p></div>", unsafe_allow_html=True)
+elif price_now < ma50 < ma200:
+    st.markdown("<p>🔴 Tendencia bajista. Cautela recomendada.</p></div>", unsafe_allow_html=True)
+else:
+    st.markdown("<p>🟡 Señal mixta. Esperar confirmación de tendencia.</p></div>", unsafe_allow_html=True)
 
-# Mostrar gráfico de TradingView embebido
-st.markdown("### 📈 Gráfico interactivo de TradingView")
-tv_code = f"""
+# 3. Bollinger Bands
+st.markdown("### 📊 Bandas de Bollinger")
+st.markdown(f"<div class='metric-box'><h3>Banda superior: {bb_upper:.2f} | inferior: {bb_lower:.2f}</h3>", unsafe_allow_html=True)
+if price_now >= bb_upper:
+    st.markdown("<p>🚨 Precio rozando la banda superior. Posible corrección a la baja.</p></div>", unsafe_allow_html=True)
+elif price_now <= bb_lower:
+    st.markdown("<p>🟢 Precio tocando banda inferior. Potencial rebote técnico.</p></div>", unsafe_allow_html=True)
+else:
+    st.markdown("<p>📎 Precio dentro del canal. Volatilidad moderada.</p></div>", unsafe_allow_html=True)
+
+# 4. Máximo histórico
+st.markdown("### 🏔 Máximo Histórico")
+st.markdown(f"<div class='metric-box'><h3>ATH: {ath:.2f} | Upside: {upside:.2f}%</h3>", unsafe_allow_html=True)
+if upside > 30:
+    st.markdown("<p>🚀 Upside significativo. Potencial de suba a mediano plazo.</p></div>", unsafe_allow_html=True)
+elif upside < 10:
+    st.markdown("<p>📉 Upside limitado. La acción ya está cerca de su pico histórico.</p></div>", unsafe_allow_html=True)
+else:
+    st.markdown("<p>📊 Potencial intermedio. Evaluar junto a otros factores.</p></div>", unsafe_allow_html=True)
+
+# 5. Análisis Fundamental
+st.markdown("### 📘 Análisis Fundamental")
+st.markdown(f"<div class='metric-box'><h3>PE: {pe} | EPS: {eps} | Market Cap: ${mkt_cap:,}</h3>", unsafe_allow_html=True)
+if pe and pe < 15:
+    st.markdown("<p>💲 PE bajo. Posible infravaloración.</p>", unsafe_allow_html=True)
+elif pe and pe > 30:
+    st.markdown("<p>⚠️ PE alto. Podría estar sobrevalorada.</p>", unsafe_allow_html=True)
+else:
+    st.markdown("<p>📊 Valuación media.</p>", unsafe_allow_html=True)
+
+if eps and eps > 0:
+    st.markdown("<p>🟢 EPS positivo. La empresa está generando ganancias.</p></div>", unsafe_allow_html=True)
+else:
+    st.markdown("<p>🔴 EPS negativo. Riesgo de rentabilidad.</p></div>", unsafe_allow_html=True)
+
+# ▶️ GRÁFICO DE TRADINGVIEW
+st.markdown("### 📈 Gráfico en vivo (TradingView)")
+tv_widget = f"""
 <iframe src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_{ticker}&symbol=NASDAQ%3A{ticker}&interval=1D&hidesidetoolbar=1&symboledit=1&saveimage=1&toolbarbg=F1F3F6&studies=[]&theme=dark&style=1&timezone=America%2FArgentina%2FBuenos_Aires&withdateranges=1&hidevolume=0" 
 width="100%" height="500" frameborder="0" allowtransparency="true" scrolling="no"></iframe>
 """
-components.html(tv_code, height=500)
+components.html(tv_widget, height=500)
+
+# ▶️ 🔍 RESUMEN FINAL / ASISTENTE
+st.markdown("## 🧠 Informe del Asistente Financiero AI")
+
+# Evaluación general (semáforo)
+if rsi < 30 and upside > 25 and eps > 0:
+    estado = "🟢 **Condiciones favorables** para una oportunidad de entrada técnica."
+elif rsi > 70 or price_now > bb_upper:
+    estado = "🔴 **Posible corrección en curso.** Cautela recomendada."
+else:
+    estado = "🟡 **Escenario mixto.** Esperar confirmación o entrada en zona más clara."
+
+# Recomendación estilo estrategia
+st.markdown(f"""
+<div class='metric-box'>
+<h3>🎯 Estado Actual</h3>
+<p>{estado}</p>
+<h3>📌 Estrategia sugerida:</h3>
+<ul>
+<li>Si buscás entrada, considerá esperar un RSI < 40 o pullback a MA50</li>
+<li>Si ya tenés la acción, monitoreá zona de ${ath:.2f} como techo técnico</li>
+<li>Si EPS es positivo, mantené en largo plazo mientras RSI esté < 70</li>
+</ul>
+</div>
+""", unsafe_allow_html=True)
