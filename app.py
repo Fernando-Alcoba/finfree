@@ -1,4 +1,4 @@
-import streamlit as st 
+import streamlit as st  
 import pandas as pd
 import yfinance as yf
 import ta
@@ -100,16 +100,19 @@ selected_ticker = None
 for i, ticker in enumerate(tickers[:5]):
     if last_prices[ticker] is not None and prev_close[ticker] is not None:
         change = ((last_prices[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
+        last_price_str = f"${last_prices[ticker]:.2f}"
     else:
         change = 0
+        last_price_str = "N/A"
     color_class = "change-pos" if change > 0 else "change-neg"
     with cols[i]:
-        if st.button(f"{ticker}\n\n${last_prices[ticker]:.2f} ({change:.2f}%)"):
+        button_label = f"{ticker}\n\n{last_price_str} ({change:.2f}%)"
+        if st.button(button_label, key=f"btn_{ticker}_top"):
             selected_ticker = ticker
         st.markdown(f"""
         <div class="card">
             <div class="card-title">{ticker}</div>
-            <div class="price">${last_prices[ticker]:.2f}</div>
+            <div class="price">{last_price_str}</div>
             <div class="{color_class}">{change:.2f}%</div>
         </div>
         """, unsafe_allow_html=True)
@@ -119,16 +122,19 @@ cols2 = st.columns(5)
 for i, ticker in enumerate(tickers[5:]):
     if last_prices[ticker] is not None and prev_close[ticker] is not None:
         change = ((last_prices[ticker] - prev_close[ticker]) / prev_close[ticker]) * 100
+        last_price_str = f"${last_prices[ticker]:.2f}"
     else:
         change = 0
+        last_price_str = "N/A"
     color_class = "change-pos" if change > 0 else "change-neg"
     with cols2[i]:
-        if st.button(f"{ticker}\n\n${last_prices[ticker]:.2f} ({change:.2f}%)", key=f"vol_{ticker}"):
+        button_label = f"{ticker}\n\n{last_price_str} ({change:.2f}%)"
+        if st.button(button_label, key=f"btn_{ticker}_bottom"):
             selected_ticker = ticker
         st.markdown(f"""
         <div class="card">
             <div class="card-title">{ticker}</div>
-            <div class="price">${last_prices[ticker]:.2f}</div>
+            <div class="price">{last_price_str}</div>
             <div class="{color_class}">{change:.2f}%</div>
         </div>
         """, unsafe_allow_html=True)
@@ -231,4 +237,3 @@ if selected_ticker:
     width="100%" height="500" frameborder="0" scrolling="no"></iframe>
     """
     components.html(tv_widget, height=500)
-
