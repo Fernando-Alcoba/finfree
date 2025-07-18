@@ -1,5 +1,9 @@
 streamlit
-yfinance
 pandas
+numpy
+yfinance
 ta
+xgboost
+scikit-learn
+joblib
 feedparser
