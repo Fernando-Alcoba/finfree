@@ -87,7 +87,8 @@ adr_latam = ["YPF","GGAL","BMA","PAM","CEPU","SUPV","TX","TGS","BBAR","MELI"]
 MODEL_PATH = "xgboost_model.pkl"
 
 def feature_engineering(df):
-    df["RSI"] = ta.momentum.RSIIndicator(df["Close"]).rsi()
+    # SOLUCIÓN: Usar ta.momentum.rsi() directamente en lugar de RSIIndicator
+    df["RSI"] = ta.momentum.rsi(df["Close"])
     df["MA50"] = df["Close"].rolling(50).mean()
     df["MA200"] = df["Close"].rolling(200).mean()
     df["MACD"] = ta.trend.MACD(df["Close"]).macd()
