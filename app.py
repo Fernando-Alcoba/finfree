@@ -4,7 +4,6 @@ import yfinance as yf
 import ta
 import streamlit.components.v1 as components
 import feedparser
-import datetime
 
 st.set_page_config(layout="wide", page_title="FinAdvisor AI")
 
@@ -22,11 +21,6 @@ body { background-color: #0e1117; color: white; }
 .section-title { font-size: 1.6em; margin-top: 30px; color: #c084fc; }
 .metric-box { border-radius: 12px; background-color: #1c1f26; padding: 15px; margin: 10px 0; }
 .metric-title { color: #c084fc; font-size: 1.3em; }
-.news-card { display: flex; background: #1c1f26; border-radius: 12px; padding: 10px; margin-bottom: 10px; }
-.news-card img { width: 80px; height: 80px; border-radius: 8px; margin-right: 10px; object-fit: cover; }
-.news-content { flex: 1; }
-.news-title { font-weight: bold; font-size: 1.1em; }
-.reco-title { font-size: 1.4em; font-weight: bold; color: #f472b6; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -119,15 +113,14 @@ for i, ticker in enumerate(tickers[5:]):
         """, unsafe_allow_html=True)
 
 # =======================
-# Análisis técnico + fundamentals con recomendación profesional
+# Análisis técnico avanzado
 # =======================
 selected_ticker = st.session_state.selected_ticker
+st.markdown(f"### ✅ Análisis de: **{selected_ticker}**")
+
 stock = yf.Ticker(selected_ticker)
 df = stock.history(period="6mo")
 hist_all = stock.history(period="max")
-info = stock.info
-
-st.markdown(f"## 📌 {info.get('shortName', selected_ticker)} ({selected_ticker}) – Recomendación de inversión ({datetime.datetime.now().strftime('%B %Y')})")
 
 if df.empty:
     st.warning("No hay datos históricos para análisis.")
@@ -136,54 +129,105 @@ else:
     rsi = ta.momentum.RSIIndicator(df["Close"]).rsi().iloc[-1]
     ma50 = df["Close"].rolling(50).mean().iloc[-1]
     ma200 = df["Close"].rolling(200).mean().iloc[-1]
+
+    # Bandas Bollinger
     bb = ta.volatility.BollingerBands(df["Close"])
     bb_upper = bb.bollinger_hband().iloc[-1]
     bb_lower = bb.bollinger_lband().iloc[-1]
+
+    # MACD
     macd = ta.trend.MACD(df["Close"])
     macd_val = macd.macd().iloc[-1]
     macd_signal = macd.macd_signal().iloc[-1]
+
+    # Soporte y resistencia últimos 3 meses
     support = df["Close"].min()
     resistance = df["Close"].max()
+
+    # Upside vs ATH
     ath = hist_all["Close"].max()
     upside = ((ath - price_now) / price_now) * 100
 
-    # Fundamentals básicos
-    pe = info.get("forwardPE", "N/A")
-    roe = info.get("returnOnEquity", 0) * 100 if info.get("returnOnEquity") else "N/A"
-    fcf = info.get("freeCashflow", 0)
+    # Mostrar métricas
+    st.markdown(f"""
+    <div class="metric-box">
+    <p class="metric-title">📌 Precio actual: ${price_now:.2f}</p>
+    <p>RSI: {rsi:.2f} | MA50: {ma50:.2f} | MA200: {ma200:.2f}</p>
+    <p>Bandas Bollinger: Superior {bb_upper:.2f} | Inferior {bb_lower:.2f}</p>
+    <p>MACD: {macd_val:.2f} | Señal: {macd_signal:.2f}</p>
+    <p>Soporte: {support:.2f} | Resistencia: {resistance:.2f}</p>
+    <p>ATH: {ath:.2f} | Upside: {upside:.2f}%</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # =======================
+    # Recomendación AI con fundamentos
+    # =======================
+    info = stock.info
+    market_cap = info.get("marketCap", 0)
+    pe_ratio = info.get("forwardPE", None)
+    eps = info.get("forwardEps", None)
+    div_yield = (info.get("dividendYield", 0) or 0) * 100
+
+    score = 0
+    if rsi < 30: score += 2
+    if price_now > ma50 > ma200: score += 2
+    if price_now <= bb_lower: score += 2
+    if macd_val > macd_signal: score += 1
+    if upside > 25: score += 2
+    if pe_ratio and pe_ratio < 20: score += 2
+    if div_yield > 1: score += 1
+
+    if score >= 8:
+        recomendacion = "🟢 Comprar (Alta probabilidad) – Señales técnicas fuertes y fundamentos atractivos."
+    elif score >= 5:
+        recomendacion = "🟡 Mantener (Escenario mixto) – Señales intermedias, monitorear evolución."
+    else:
+        recomendacion = "🔴 Vender (Baja probabilidad) – Señales débiles y fundamentos poco atractivos."
 
     st.markdown(f"""
-    **Precio actual:** USD {price_now:.2f}  
-    **Potencial upside 12 meses:** +{upside:.0f}% (objetivo ~USD {ath:.0f})  
-    **Valuación:** P/E: {pe}, ROE: {roe}%, FCF: {fcf}  
-    **Técnico:** RSI {rsi:.1f}, MA50 {ma50:.1f}, MA200 {ma200:.1f}, Soporte {support:.1f}, Resistencia {resistance:.1f}  
+    ### ✅ **Recomendación AI**
+    {recomendacion}
+
+    **Fundamentales Clave:**
+    - Market Cap: {market_cap/1e9:.2f}B
+    - P/E Ratio: {pe_ratio if pe_ratio else 'N/A'}
+    - EPS Est.: {eps if eps else 'N/A'}
+    - Dividend Yield: {div_yield:.2f}%
+
+    **Upside esperado:** {upside:.2f}%
+    **Técnicos:** RSI: {rsi:.2f} | MA50: {ma50:.2f} | MA200: {ma200:.2f}
     """)
 
-    st.markdown("---")
-    st.markdown("### ✅ Conclusión")
-    if upside > 20 and rsi < 70:
-        st.success("Alta probabilidad de upside. Ideal para mantener o comprar en retrocesos.")
-    elif rsi > 70:
-        st.warning("Sobrecomprada. Podría corregir pronto. Mejor esperar.")
-    else:
-        st.info("Escenario mixto. Comprar parcialmente o esperar señales más claras.")
-
 # =======================
-# Noticias con imagen
+# Noticias (RSS Yahoo Finance con imagen fallback)
 # =======================
 st.markdown("### 📰 Noticias recientes")
-rss_url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={selected_ticker}&region=US&lang=en-US"
-feed = feedparser.parse(rss_url)
 
-if feed.entries:
+def get_news_rss(ticker):
+    rss_url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
+    feed = feedparser.parse(rss_url)
+    news_list = []
     for entry in feed.entries[:5]:
-        img_url = f"https://logo.clearbit.com/{info.get('website', 'example.com')}"
+        img = "https://via.placeholder.com/120"  # Imagen por defecto
+        news_list.append({
+            "title": entry.title,
+            "link": entry.link,
+            "summary": entry.summary,
+            "img": img
+        })
+    return news_list
+
+news = get_news_rss(selected_ticker)
+
+if news:
+    for n in news:
         st.markdown(f"""
-        <div class="news-card">
-            <img src="{img_url}" alt="Logo">
-            <div class="news-content">
-                <div class="news-title"><a href="{entry.link}" target="_blank">{entry.title}</a></div>
-                <div>{entry.published}</div>
+        <div style="display:flex; align-items:center; margin-bottom:15px; background:#1c1f26; border-radius:12px; padding:10px;">
+            <img src="{n['img']}" width="100" style="border-radius:8px; margin-right:15px;">
+            <div>
+                <a href="{n['link']}" target="_blank" style="color:#c084fc; font-size:1.1em; text-decoration:none;">{n['title']}</a>
+                <p style="color:#888; font-size:0.9em;">{n['summary'][:100]}...</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
