@@ -66,59 +66,39 @@ body {
 """, unsafe_allow_html=True)
 
 # =======================
-# Título y descripción
+# Título
 # =======================
 st.markdown("<h1 style='color:#ffffff;'>👋 Bienvenido a FinAdvisor AI</h1>", unsafe_allow_html=True)
 st.markdown("<p style='color:#cccccc;'>Descubrí oportunidades de inversión con datos en tiempo real, análisis técnico, fundamental y noticias.</p>", unsafe_allow_html=True)
-
-# =======================
-# Cargar datos de empresas
-# =======================
-@st.cache_data
-def load_companies():
-    url = "https://raw.githubusercontent.com/datasets/s-and-p-500-companies/master/data/constituents.csv"
-    return pd.read_csv(url)
-
-company_df = load_companies()
-# 'Security' es el nombre de empresa en este dataset
-company_df["SearchKey"] = company_df["Security"].fillna("").str.lower()
-
-# =======================
-# Buscador por nombre
-# =======================
-st.markdown("### 🔍 Buscar empresa")
-query = st.text_input("Ingresá el nombre o parte del nombre de la empresa").lower()
-
-filtered_df = company_df[company_df["SearchKey"].str.contains(query, na=False)] if query else pd.DataFrame()
-
-selected_ticker = None
-
-if not filtered_df.empty:
-    opciones = filtered_df["Security"] + " (" + filtered_df["Symbol"] + ")"
-    seleccion = st.selectbox("Elegí la empresa:", opciones)
-    selected_ticker = seleccion.split("(")[-1].replace(")", "").strip()
 
 # =======================
 # Tickers populares
 # =======================
 tickers = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "GOOGL", "META", "JPM", "DIS", "MCD"]
 
-data = yf.download(tickers, period="1d", interval="1m", group_by='ticker', threads=True)
-prev_close_data = yf.download(tickers, period="2d", interval="1d")
+# Descargar datos
+try:
+    data = yf.download(tickers, period="1d", interval="1m", group_by='ticker', threads=True)
+    prev_close_data = yf.download(tickers, period="2d", interval="1d")
+except:
+    st.error("Error al descargar datos de Yahoo Finance")
+    data, prev_close_data = None, None
 
-last_prices = {}
-prev_close = {}
+last_prices, prev_close = {}, {}
 
 for ticker in tickers:
     try:
-        last_prices[ticker] = data[ticker]['Adj Close'].iloc[-1]
+        last_prices[ticker] = data[ticker]['Adj Close'].iloc[-1] if ticker in data else None
     except:
         last_prices[ticker] = None
     try:
-        prev_close[ticker] = prev_close_data[ticker]['Adj Close'].iloc[-2]
+        prev_close[ticker] = prev_close_data[ticker]['Adj Close'].iloc[-2] if ticker in prev_close_data else None
     except:
         prev_close[ticker] = None
 
+# =======================
+# Mostrar tarjetas
+# =======================
 st.markdown("<div class='section-title'>📊 Tendencias USA</div>", unsafe_allow_html=True)
 cols = st.columns(5)
 for i, ticker in enumerate(tickers[:5]):
@@ -128,8 +108,6 @@ for i, ticker in enumerate(tickers[:5]):
     price_str = f"${price:.2f}" if price else "N/A"
     color_class = "change-pos" if change > 0 else "change-neg"
     with cols[i]:
-        if st.button(f"{ticker}\n{price_str} ({change:.2f}%)", key=f"btn_top_{ticker}"):
-            selected_ticker = ticker
         st.markdown(f"""
         <div class="card">
             <div class="card-title">{ticker}</div>
@@ -147,8 +125,6 @@ for i, ticker in enumerate(tickers[5:]):
     price_str = f"${price:.2f}" if price else "N/A"
     color_class = "change-pos" if change > 0 else "change-neg"
     with cols2[i]:
-        if st.button(f"{ticker}\n{price_str} ({change:.2f}%)", key=f"btn_bot_{ticker}"):
-            selected_ticker = ticker
         st.markdown(f"""
         <div class="card">
             <div class="card-title">{ticker}</div>
@@ -158,123 +134,26 @@ for i, ticker in enumerate(tickers[5:]):
         """, unsafe_allow_html=True)
 
 # =======================
-# Función para mostrar noticias con resumen
+# Selección de ticker
 # =======================
-def mostrar_noticias(ticker):
-    st.markdown("### 🗞 Noticias recientes")
-    try:
-        rss_url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
-        feed = feedparser.parse(rss_url)
-        if not feed.entries:
-            st.info("No hay noticias recientes.")
-        else:
-            for entry in feed.entries[:5]:
-                title = entry.title
-                link = entry.link
-                summary = entry.summary if 'summary' in entry else (entry.description if 'description' in entry else '')
-                st.markdown(f"**[{title}]({link})**")
-                st.markdown(f"{summary}", unsafe_allow_html=True)
-                st.markdown("---")
-    except Exception as e:
-        st.error(f"Error al obtener noticias: {e}")
+selected_ticker = st.selectbox("Elegí un ticker para analizar:", tickers)
 
 # =======================
-# Análisis técnico y fundamental, más noticias
+# Análisis técnico
 # =======================
-
-default_ticker = "AAPL"
-ticker_to_show = selected_ticker if selected_ticker else default_ticker
-
-stock = yf.Ticker(ticker_to_show)
-hist = stock.history(period="max")
-price_now = hist["Close"].iloc[-1]
-ath = hist["Close"].max()
-upside = ((ath - price_now) / price_now) * 100
-
+stock = yf.Ticker(selected_ticker)
 df = stock.history(period="6mo")
+price_now = df["Close"].iloc[-1]
 rsi = ta.momentum.RSIIndicator(df["Close"]).rsi().iloc[-1]
 ma50 = df["Close"].rolling(50).mean().iloc[-1]
 ma200 = df["Close"].rolling(200).mean().iloc[-1]
-bb = ta.volatility.BollingerBands(df["Close"])
-bb_upper = bb.bollinger_hband().iloc[-1]
-bb_lower = bb.bollinger_lband().iloc[-1]
 
-info = stock.info
-pe = info.get("trailingPE", None)
-eps = info.get("trailingEps", None)
-mkt_cap = info.get("marketCap", None)
-
-st.markdown(f"<h2 style='color:#ffffff;'>📌 Análisis de {ticker_to_show}</h2>", unsafe_allow_html=True)
-
-cols_main = st.columns([2, 1])
-
-with cols_main[0]:
-    st.markdown(f"<div class='metric-box'><h3>📉 RSI: {rsi:.2f}</h3>", unsafe_allow_html=True)
-    if rsi < 30:
-        st.markdown("<p>📉 Sobrevendido. Probabilidad de rebote: <span style='color:lime;'>ALTA ✅</span></p>", unsafe_allow_html=True)
-    elif rsi > 70:
-        st.markdown("<p>📈 Sobrecomprado. Riesgo de caída: <span style='color:red;'>ELEVADO ⚠️</span></p>", unsafe_allow_html=True)
-    else:
-        st.markdown("<p>📊 RSI neutral. Esperar confirmación.</p></div>", unsafe_allow_html=True)
-
-    st.markdown(f"<div class='metric-box'><h3>📈 MA50: {ma50:.2f} | MA200: {ma200:.2f} | Precio: {price_now:.2f}</h3>", unsafe_allow_html=True)
-    if price_now > ma50 > ma200:
-        st.markdown("<p>🟢 Tendencia alcista. Momentum positivo.</p></div>", unsafe_allow_html=True)
-    elif price_now < ma50 < ma200:
-        st.markdown("<p>🔴 Tendencia bajista. Cautela recomendada.</p></div>", unsafe_allow_html=True)
-    else:
-        st.markdown("<p>🟡 Señal mixta. Esperar confirmación.</p></div>", unsafe_allow_html=True)
-
-    st.markdown(f"<div class='metric-box'><h3>📊 Bollinger Bands</h3><p>Superior: {bb_upper:.2f} | Inferior: {bb_lower:.2f}</p>", unsafe_allow_html=True)
-    if price_now >= bb_upper:
-        st.markdown("<p>🚨 Precio rozando la banda superior. Riesgo de corrección.</p></div>", unsafe_allow_html=True)
-    elif price_now <= bb_lower:
-        st.markdown("<p>🟢 Precio tocando banda inferior. Potencial rebote técnico.</p></div>", unsafe_allow_html=True)
-    else:
-        st.markdown("<p>📎 Dentro del canal. Volatilidad normal.</p></div>", unsafe_allow_html=True)
-
-    st.markdown(f"<div class='metric-box'><h3>🏔 Máximo Histórico: {ath:.2f} | Upside: {upside:.2f}%</h3>", unsafe_allow_html=True)
-    if upside > 30:
-        st.markdown("<p>🚀 Potencial alto. Puede subir fuerte.</p></div>", unsafe_allow_html=True)
-    elif upside < 10:
-        st.markdown("<p>📉 Upside bajo. Ya está cerca del techo.</p></div>", unsafe_allow_html=True)
-    else:
-        st.markdown("<p>📊 Potencial moderado. Evaluar junto a técnica.</p></div>", unsafe_allow_html=True)
-
-    st.markdown(f"<div class='metric-box'><h3>📘 Fundamentos</h3><p>PE: {pe} | EPS: {eps} | Market Cap: ${mkt_cap:,}</p>", unsafe_allow_html=True)
-    if pe and pe < 15:
-        st.markdown("<p>💲 PE bajo. Posible infravaloración.</p>", unsafe_allow_html=True)
-    elif pe and pe > 30:
-        st.markdown("<p>⚠️ PE alto. Podría estar sobrevalorada.</p>", unsafe_allow_html=True)
-    if eps and eps > 0:
-        st.markdown("<p>🟢 EPS positivo. La empresa gana dinero.</p></div>", unsafe_allow_html=True)
-    else:
-        st.markdown("<p>🔴 EPS negativo. Riesgo de rentabilidad.</p></div>", unsafe_allow_html=True)
-
-    st.markdown(f"<div class='metric-box'><h3>🧠 Asistente AI</h3>", unsafe_allow_html=True)
-    if rsi < 30 and upside > 25 and eps and eps > 0:
-        st.markdown("🟢 Escenario optimista. Entrada técnica válida.", unsafe_allow_html=True)
-    elif rsi > 70 or price_now > bb_upper:
-        st.markdown("🔴 Posible corrección. Cautela recomendada.", unsafe_allow_html=True)
-    else:
-        st.markdown("🟡 Esperar mejor oportunidad.", unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <ul>
-    <li>Si buscás entrada, RSI < 40 o rebote en MA50</li>
-    <li>Si ya tenés, mantené mientras EPS siga positivo</li>
-    <li>Zona objetivo: ${ath:.2f}</li>
-    </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # TradingView chart
-    st.markdown("### 📈 Gráfico interactivo")
-    tv_widget = f"""
-    <iframe src="https://s.tradingview.com/widgetembed/?symbol=NASDAQ:{ticker_to_show}&interval=1D&theme=dark&style=1&timezone=America%2FBuenos_Aires"
-    width="100%" height="500" frameborder="0" scrolling="no"></iframe>
-    """
-    components.html(tv_widget, height=500)
-
-with cols_main[1]:
-    mostrar_noticias(ticker_to_show)
+# =======================
+# Gráfico interactivo TradingView
+# =======================
+st.markdown("### 📈 Gráfico interactivo")
+tv_widget = f"""
+<iframe src="https://s.tradingview.com/widgetembed/?symbol={selected_ticker}&interval=1D&theme=dark&style=1&timezone=America%2FBuenos_Aires"
+width="100%" height="500" frameborder="0" scrolling="no"></iframe>
+"""
+components.html(tv_widget, height=500)
