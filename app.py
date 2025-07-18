@@ -3,8 +3,7 @@ import pandas as pd
 import yfinance as yf
 import ta
 import streamlit.components.v1 as components
-import requests
-from bs4 import BeautifulSoup
+import feedparser
 
 st.set_page_config(layout="wide", page_title="FinAdvisor AI")
 
@@ -201,31 +200,25 @@ else:
     """)
 
 # =======================
-# Noticias con imagen (Yahoo Finance)
+# Noticias (RSS Yahoo Finance con imagen fallback)
 # =======================
 st.markdown("### 📰 Noticias recientes")
-def get_news_with_images(ticker):
-    url = f"https://finance.yahoo.com/quote/{ticker}?p={ticker}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    r = requests.get(url, headers=headers)
-    soup = BeautifulSoup(r.text, "html.parser")
-    items = soup.select("li.js-stream-content")[:5]
 
-    noticias = []
-    for item in items:
-        title_tag = item.find("h3")
-        if not title_tag: continue
-        link_tag = title_tag.find("a")
-        title = link_tag.get_text(strip=True)
-        link = "https://finance.yahoo.com" + link_tag.get("href")
-        img_tag = item.find("img")
-        img_src = img_tag.get("src") if img_tag else "https://via.placeholder.com/150"
-        meta = item.find("span", class_="C(#959595)")
-        meta_text = meta.get_text(strip=True) if meta else "Yahoo Finance"
-        noticias.append({"title": title, "link": link, "img": img_src, "meta": meta_text})
-    return noticias
+def get_news_rss(ticker):
+    rss_url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}&region=US&lang=en-US"
+    feed = feedparser.parse(rss_url)
+    news_list = []
+    for entry in feed.entries[:5]:
+        img = "https://via.placeholder.com/120"  # Imagen por defecto
+        news_list.append({
+            "title": entry.title,
+            "link": entry.link,
+            "summary": entry.summary,
+            "img": img
+        })
+    return news_list
 
-news = get_news_with_images(selected_ticker)
+news = get_news_rss(selected_ticker)
 
 if news:
     for n in news:
@@ -234,7 +227,7 @@ if news:
             <img src="{n['img']}" width="100" style="border-radius:8px; margin-right:15px;">
             <div>
                 <a href="{n['link']}" target="_blank" style="color:#c084fc; font-size:1.1em; text-decoration:none;">{n['title']}</a>
-                <p style="color:#888; font-size:0.9em;">{n['meta']}</p>
+                <p style="color:#888; font-size:0.9em;">{n['summary'][:100]}...</p>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -250,4 +243,3 @@ tv_widget = f"""
 width="100%" height="500" frameborder="0" scrolling="no"></iframe>
 """
 components.html(tv_widget, height=500)
-
