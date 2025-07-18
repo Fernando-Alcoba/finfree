@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import yfinance as yf
-import ta
 import feedparser
 import streamlit.components.v1 as components
 import xgboost as xgb
@@ -82,16 +81,36 @@ company_df = load_companies()
 adr_latam = ["YPF","GGAL","BMA","PAM","CEPU","SUPV","TX","TGS","BBAR","MELI"]
 
 # =======================
+# Implementación manual de RSI
+# =======================
+def calculate_rsi(series, window=14):
+    delta = series.diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+    
+    avg_gain = gain.rolling(window).mean()
+    avg_loss = loss.rolling(window).mean()
+    
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+# =======================
 # IA Predictiva (XGBoost)
 # =======================
 MODEL_PATH = "xgboost_model.pkl"
 
 def feature_engineering(df):
-    # SOLUCIÓN: Usar ta.momentum.rsi() directamente en lugar de RSIIndicator
-    df["RSI"] = ta.momentum.rsi(df["Close"])
+    # Implementación manual de RSI para evitar errores en la biblioteca ta
+    df["RSI"] = calculate_rsi(df["Close"])
     df["MA50"] = df["Close"].rolling(50).mean()
     df["MA200"] = df["Close"].rolling(200).mean()
-    df["MACD"] = ta.trend.MACD(df["Close"]).macd()
+    
+    # Implementación manual de MACD
+    ema12 = df["Close"].ewm(span=12, adjust=False).mean()
+    ema26 = df["Close"].ewm(span=26, adjust=False).mean()
+    df["MACD"] = ema12 - ema26
+    
     df["Volume"] = df["Volume"]
     df.dropna(inplace=True)
     return df
@@ -162,13 +181,23 @@ if page == "Dashboard Principal":
     else:
         st.subheader(f"✅ Análisis de {selected_ticker}")
         pred_30d, pred_90d, mae30, mae90 = train_or_update_model(selected_ticker)
+        current_price = df['Close'].iloc[-1]
+        
+        # Calcular cambios porcentuales
+        change_30d = ((pred_30d - current_price) / current_price) * 100
+        change_90d = ((pred_90d - current_price) / current_price) * 100
+        
+        # Determinar colores según los cambios
+        color_30d = "lime" if change_30d > 0 else "red"
+        color_90d = "lime" if change_90d > 0 else "red"
+        
         st.markdown(f"""
         **Predicción IA:**  
-        - Precio actual: ${df['Close'].iloc[-1]:.2f}  
-        - 30 días: ${pred_30d:.2f}  
-        - 90 días: ${pred_90d:.2f}  
+        - Precio actual: ${current_price:.2f}  
+        - 30 días: ${pred_30d:.2f} (<span style='color:{color_30d};'>{change_30d:.2f}%</span>) 
+        - 90 días: ${pred_90d:.2f} (<span style='color:{color_90d};'>{change_90d:.2f}%</span>) 
         - Error esperado (MAE): 30d={mae30:.2f}, 90d={mae90:.2f}  
-        """)
+        """, unsafe_allow_html=True)
 
     # Noticias
     st.markdown("### 📰 Noticias recientes")
@@ -187,13 +216,43 @@ if page == "Top Picks AI":
     st.markdown("<h1 style='color:#fff;'>🚀 Ranking Acciones con Mayor Potencial</h1>", unsafe_allow_html=True)
     tickers = ["AAPL","MSFT","TSLA","AMZN","NVDA","GOOGL","META","JPM","DIS","MCD"] + adr_latam
     ranking = []
-    for t in tickers:
-        try:
-            pred_30d, pred_90d, _, _ = train_or_update_model(t)
-            current_price = yf.Ticker(t).history(period="1d")["Close"].iloc[-1]
-            upside_30 = ((pred_30d - current_price) / current_price) * 100
-            ranking.append({"Ticker": t, "Precio": current_price, "Pred_30d": pred_30d, "Upside_30d": upside_30})
-        except:
-            continue
-    df_rank = pd.DataFrame(ranking).sort_values(by="Upside_30d", ascending=False).head(10)
-    st.dataframe(df_rank)
+    
+    with st.spinner('🔍 Analizando acciones...'):
+        for t in tickers:
+            try:
+                pred_30d, pred_90d, _, _ = train_or_update_model(t)
+                current_price = yf.Ticker(t).history(period="1d")["Close"].iloc[-1]
+                upside_30 = ((pred_30d - current_price) / current_price) * 100
+                ranking.append({
+                    "Ticker": t, 
+                    "Precio": current_price, 
+                    "Pred 30d": pred_30d, 
+                    "Potencial %": upside_30
+                })
+            except Exception as e:
+                st.error(f"Error con {t}: {str(e)}")
+                continue
+    
+    if ranking:
+        df_rank = pd.DataFrame(ranking).sort_values(by="Potencial %", ascending=False).head(10)
+        
+        # Formatear y aplicar estilos
+        df_rank["Precio"] = df_rank["Precio"].apply(lambda x: f"${x:.2f}")
+        df_rank["Pred 30d"] = df_rank["Pred 30d"].apply(lambda x: f"${x:.2f}")
+        df_rank["Potencial %"] = df_rank["Potencial %"].apply(lambda x: f"{x:.2f}%")
+        
+        # Resaltar valores positivos/negativos
+        def color_potential(val):
+            try:
+                num = float(val.replace('%', ''))
+                color = 'green' if num > 0 else 'red'
+                return f'color: {color}; font-weight: bold'
+            except:
+                return ''
+        
+        styled_df = df_rank.style.applymap(color_potential, subset=['Potencial %'])
+        
+        # Mostrar tabla formateada
+        st.table(styled_df)
+    else:
+        st.warning("No se pudo generar el ranking. Intente nuevamente.")
