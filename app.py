@@ -3,7 +3,8 @@ import pandas as pd
 import yfinance as yf
 import ta
 import streamlit.components.v1 as components
-import feedparser
+import requests
+from bs4 import BeautifulSoup
 
 st.set_page_config(layout="wide", page_title="FinAdvisor AI")
 
@@ -160,32 +161,83 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # Lógica de recomendación
+    # =======================
+    # Recomendación AI con fundamentos
+    # =======================
+    info = stock.info
+    market_cap = info.get("marketCap", 0)
+    pe_ratio = info.get("forwardPE", None)
+    eps = info.get("forwardEps", None)
+    div_yield = (info.get("dividendYield", 0) or 0) * 100
+
     score = 0
     if rsi < 30: score += 2
     if price_now > ma50 > ma200: score += 2
     if price_now <= bb_lower: score += 2
     if macd_val > macd_signal: score += 1
     if upside > 25: score += 2
+    if pe_ratio and pe_ratio < 20: score += 2
+    if div_yield > 1: score += 1
 
-    if score >= 6:
-        recomendacion = "🟢 Comprar (Alta probabilidad)"
-    elif score >= 3:
-        recomendacion = "🟡 Mantener (Escenario mixto)"
+    if score >= 8:
+        recomendacion = "🟢 Comprar (Alta probabilidad) – Señales técnicas fuertes y fundamentos atractivos."
+    elif score >= 5:
+        recomendacion = "🟡 Mantener (Escenario mixto) – Señales intermedias, monitorear evolución."
     else:
-        recomendacion = "🔴 Vender (Baja probabilidad de subida)"
+        recomendacion = "🔴 Vender (Baja probabilidad) – Señales débiles y fundamentos poco atractivos."
 
-    st.markdown(f"### ✅ **Recomendación AI:** {recomendacion}")
+    st.markdown(f"""
+    ### ✅ **Recomendación AI**
+    {recomendacion}
+
+    **Fundamentales Clave:**
+    - Market Cap: {market_cap/1e9:.2f}B
+    - P/E Ratio: {pe_ratio if pe_ratio else 'N/A'}
+    - EPS Est.: {eps if eps else 'N/A'}
+    - Dividend Yield: {div_yield:.2f}%
+
+    **Upside esperado:** {upside:.2f}%
+    **Técnicos:** RSI: {rsi:.2f} | MA50: {ma50:.2f} | MA200: {ma200:.2f}
+    """)
 
 # =======================
-# Noticias
+# Noticias con imagen (Yahoo Finance)
 # =======================
 st.markdown("### 📰 Noticias recientes")
-rss_url = f"https://feeds.finance.yahoo.com/rss/2.0/headline?s={selected_ticker}&region=US&lang=en-US"
-feed = feedparser.parse(rss_url)
-if feed.entries:
-    for entry in feed.entries[:5]:
-        st.markdown(f"**[{entry.title}]({entry.link})**")
+def get_news_with_images(ticker):
+    url = f"https://finance.yahoo.com/quote/{ticker}?p={ticker}"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    r = requests.get(url, headers=headers)
+    soup = BeautifulSoup(r.text, "html.parser")
+    items = soup.select("li.js-stream-content")[:5]
+
+    noticias = []
+    for item in items:
+        title_tag = item.find("h3")
+        if not title_tag: continue
+        link_tag = title_tag.find("a")
+        title = link_tag.get_text(strip=True)
+        link = "https://finance.yahoo.com" + link_tag.get("href")
+        img_tag = item.find("img")
+        img_src = img_tag.get("src") if img_tag else "https://via.placeholder.com/150"
+        meta = item.find("span", class_="C(#959595)")
+        meta_text = meta.get_text(strip=True) if meta else "Yahoo Finance"
+        noticias.append({"title": title, "link": link, "img": img_src, "meta": meta_text})
+    return noticias
+
+news = get_news_with_images(selected_ticker)
+
+if news:
+    for n in news:
+        st.markdown(f"""
+        <div style="display:flex; align-items:center; margin-bottom:15px; background:#1c1f26; border-radius:12px; padding:10px;">
+            <img src="{n['img']}" width="100" style="border-radius:8px; margin-right:15px;">
+            <div>
+                <a href="{n['link']}" target="_blank" style="color:#c084fc; font-size:1.1em; text-decoration:none;">{n['title']}</a>
+                <p style="color:#888; font-size:0.9em;">{n['meta']}</p>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 else:
     st.info("No hay noticias recientes.")
 
@@ -198,3 +250,4 @@ tv_widget = f"""
 width="100%" height="500" frameborder="0" scrolling="no"></iframe>
 """
 components.html(tv_widget, height=500)
+
