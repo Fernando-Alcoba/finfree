@@ -4,7 +4,6 @@ import yfinance as yf
 import ta
 import feedparser
 import streamlit.components.v1 as components
-from prophet import Prophet
 
 # =======================
 # Configuración
@@ -25,19 +24,23 @@ body { background-color: #0e1117; color: white; }
 .section-title { font-size: 1.6em; margin-top: 30px; color: #c084fc; }
 .metric-box { border-radius: 12px; background-color: #1c1f26; padding: 15px; margin: 10px 0; }
 .metric-title { color: #c084fc; font-size: 1.3em; }
-.news-card { background-color: #1c1f26; border-radius: 12px; padding: 15px; margin-bottom: 15px; display: flex; gap: 15px; }
-.news-img { width: 120px; height: 80px; object-fit: cover; border-radius: 8px; }
+.news-card {
+    background-color: #1c1f26;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    display: flex;
+    gap: 15px;
+}
+.news-img {
+    width: 120px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+}
 .news-content { flex: 1; }
 .news-title { font-size: 1.1em; font-weight: bold; color: #fff; }
 .news-link { color: #c084fc; text-decoration: none; }
-.rank-card { background-color: #1c1f26; border-radius: 12px; padding: 15px; margin: 10px; text-align: center; }
-.rank-img { width: 50px; height: 50px; border-radius: 8px; }
-.rank-title { font-weight: bold; color: #c084fc; margin-top: 10px; }
-.rank-score { font-weight: bold; font-size: 1.2em; margin-top: 5px; }
-.rank-upside { font-size: 1em; margin-top: 5px; }
-.green { color: lime; }
-.yellow { color: gold; }
-.red { color: red; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -61,9 +64,6 @@ def load_companies():
 
 company_df = load_companies()
 
-# Lista ADRs y LatAm
-adr_latam = ["YPF", "GGAL", "BMA", "PAM", "CEPU", "SUPV", "TX", "TGS", "BBAR", "MELI"]
-
 # =======================
 # 🔥 Ranking Acciones con Mayor Potencial
 # =======================
@@ -71,7 +71,7 @@ st.markdown("## 🚀 Acciones con Mayor Potencial (Ranking AI)")
 
 @st.cache_data
 def get_top_picks():
-    tickers = company_df["Symbol"].tolist()[:70] + adr_latam
+    tickers = company_df["Symbol"].tolist()[:80]  # Limitamos a 80 por performance
     ranking = []
     for t in tickers:
         try:
@@ -97,9 +97,6 @@ def get_top_picks():
             pe = info.get("forwardPE", None)
             roe = info.get("returnOnEquity", 0) * 100 if info.get("returnOnEquity") else 0
             fcf = info.get("freeCashflow", 0)
-            logo = info.get("logo_url", "https://via.placeholder.com/50")
-            name = info.get("shortName", t)
-            sector = info.get("sector", "Desconocido")
 
             # Scoring
             score = 0
@@ -114,12 +111,9 @@ def get_top_picks():
 
             ranking.append({
                 "Ticker": t,
-                "Nombre": name,
                 "Precio": f"${price:.2f}",
-                "Upside": upside,
-                "Sector": sector,
-                "Score": score,
-                "Logo": logo
+                "Upside %": f"{upside:.0f}",
+                "Score": score
             })
         except:
             continue
@@ -128,25 +122,7 @@ def get_top_picks():
     return df_rank
 
 top_picks = get_top_picks()
-
-# Mostrar Ranking con Cards
-cols = st.columns(5)
-for i, row in enumerate(top_picks.itertuples()):
-    color_class = "green" if row.Score >= 6 else "yellow" if row.Score >= 3 else "red"
-    with cols[i % 5]:
-        st.markdown(f"""
-        <div class="rank-card">
-            <img src="{row.Logo}" class="rank-img"/>
-            <div class="rank-title">{row.Ticker}</div>
-            <div>{row.Nombre}</div>
-            <div>{row.Precio}</div>
-            <div class="rank-upside">Upside: {row.Upside:.1f}%</div>
-            <div class="rank-score {color_class}">Score AI: {row.Score}</div>
-            <div>Sector: {row.Sector}</div>
-        </div>
-        """, unsafe_allow_html=True)
-        if st.button(f"Analizar {row.Ticker}", key=f"rank_{row.Ticker}"):
-            st.session_state.selected_ticker = row.Ticker
+st.dataframe(top_picks, use_container_width=True)
 
 # =======================
 # Buscador
@@ -162,10 +138,65 @@ if not filtered_df.empty:
         st.session_state.selected_ticker = seleccion.split("(")[-1].replace(")", "").strip()
 
 # =======================
+# Tickers populares
+# =======================
+tickers = ["AAPL", "MSFT", "TSLA", "AMZN", "NVDA", "GOOGL", "META", "JPM", "DIS", "MCD"]
+last_prices, changes = {}, {}
+
+for ticker in tickers:
+    stock = yf.Ticker(ticker)
+    try:
+        price = stock.fast_info.last_price
+        prev_close = stock.fast_info.previous_close
+        change = ((price - prev_close) / prev_close) * 100 if prev_close else 0
+        last_prices[ticker], changes[ticker] = price, change
+    except:
+        last_prices[ticker], changes[ticker] = None, 0
+
+# =======================
+# Mostrar tarjetas
+# =======================
+st.markdown("<div class='section-title'>📊 Tendencias USA</div>", unsafe_allow_html=True)
+cols = st.columns(5)
+for i, ticker in enumerate(tickers[:5]):
+    price = last_prices[ticker]
+    change = changes[ticker]
+    price_str = f"${price:.2f}" if price else "N/A"
+    color_class = "change-pos" if change > 0 else "change-neg"
+    with cols[i]:
+        if st.button(ticker, key=f"btn_{ticker}"):
+            st.session_state.selected_ticker = ticker
+        st.markdown(f"""
+        <div class="card">
+            <div class="card-title">{ticker}</div>
+            <div class="price">{price_str}</div>
+            <div class="{color_class}">{change:.2f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+st.markdown("<div class='section-title'>🔥 Más negociadas</div>", unsafe_allow_html=True)
+cols2 = st.columns(5)
+for i, ticker in enumerate(tickers[5:]):
+    price = last_prices[ticker]
+    change = changes[ticker]
+    price_str = f"${price:.2f}" if price else "N/A"
+    color_class = "change-pos" if change > 0 else "change-neg"
+    with cols2[i]:
+        if st.button(ticker, key=f"btn_{ticker}_2"):
+            st.session_state.selected_ticker = ticker
+        st.markdown(f"""
+        <div class="card">
+            <div class="card-title">{ticker}</div>
+            <div class="price">{price_str}</div>
+            <div class="{color_class}">{change:.2f}%</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# =======================
 # Análisis técnico + fundamental
 # =======================
 selected_ticker = st.session_state.selected_ticker
-st.markdown(f"## ✅ Análisis y Predicción: **{selected_ticker}**")
+st.markdown(f"## ✅ Análisis y Recomendación: **{selected_ticker}**")
 
 stock = yf.Ticker(selected_ticker)
 df = stock.history(period="6mo")
@@ -194,29 +225,13 @@ else:
     roe = info.get("returnOnEquity", 0)
     fcf = info.get("freeCashflow", 0)
 
-    # ✅ Modelo Prophet para predicciones
-    forecast_text = ""
-    try:
-        df_prophet = stock.history(period="1y")[["Close"]].reset_index()
-        df_prophet = df_prophet.rename(columns={"Date": "ds", "Close": "y"})
-        model = Prophet(daily_seasonality=True)
-        model.fit(df_prophet)
-        future = model.make_future_dataframe(periods=90)
-        forecast = model.predict(future)
-        price_30d = forecast.iloc[-60]["yhat"]
-        price_90d = forecast.iloc[-1]["yhat"]
-        forecast_text = f"**Predicción IA:** 30 días: ${price_30d:.2f} | 90 días: ${price_90d:.2f}"
-    except:
-        forecast_text = "No se pudo calcular la predicción IA."
-
-    # Mostrar análisis
+    # Recomendación extendida
     st.markdown(f"""
-    ### 📌 {info.get('shortName', selected_ticker)} ({selected_ticker})
+    ### 📌 {info.get('shortName', selected_ticker)} ({selected_ticker}) – Recomendación de inversión
     **Precio actual:** USD {price_now:.2f}  
-    **Upside a ATH:** {upside:.1f}%  
+    **Potencial upside 12 meses:** {upside:.1f}% (ATH: {ath:.2f})  
     **Valuación:** P/E: {pe}, ROE: {roe:.2%}, FCF: {fcf}  
     **Técnico:** RSI {rsi:.2f}, soporte {support:.2f}, resistencia {resistance:.2f}  
-    {forecast_text}
     """)
 
 # =======================
