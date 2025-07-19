@@ -5,6 +5,13 @@ import ta
 import streamlit.components.v1 as components
 import feedparser
 
+import subprocess
+import sys
+
+# Instalar feedparser si no está
+subprocess.check_call([sys.executable, "-m", "pip", "install", "feedparser"])
+
+
 st.set_page_config(layout="wide", page_title="FinAdvisor AI")
 
 # =======================
